@@ -65,6 +65,10 @@
     </default>
 
     <site size="0.001" rgba="0.5 0.5 0.5 0.3" group="4"/>
+
+    <default class="rangefinder">
+      <site size="0.01" pos="0.24 0 0" rgba="1 0 0 1" group="5"/>
+    </default>
   </default>
 
   <asset>
@@ -117,11 +121,48 @@
       <geom class="base/collision" mesh="arm_plate"/>
       <camera name="base" pos="0.2525 0 0.335" euler="0 -0.7853981634 -1.5707963268" fovy="52.23384539951277"
         resolution="640 360"/>
-      <body name="gen3/base_link" pos="0 0 0.335" quat="1 0 0 0">
+      <body name="gen3/base_link" pos="0 0 0.335" quat="-1 0 0 0">
         <inertial pos="-0.000648 -0.000166 0.084487" quat="0.999294 0.00139618 -0.0118387 0.035636" mass="1.697"
           diaginertia="0.00462407 0.00449437 0.00207755"/>
         <geom class="gen3/visual" mesh="gen3/base_link"/>
         <geom class="gen3/collision" mesh="gen3/base_link"/>
+        <site name="rf_00" class="rangefinder" euler="-1.57080 0.00000  1.57080"/>
+        <site name="rf_01" class="rangefinder" euler="-1.57080 0.08727  1.57080"/>
+        <site name="rf_02" class="rangefinder" euler="-1.57080 0.17453  1.57080"/>
+        <site name="rf_03" class="rangefinder" euler="-1.57080 0.26180  1.57080"/>
+        <site name="rf_04" class="rangefinder" euler="-1.57080 0.34907  1.57080"/>
+        <site name="rf_05" class="rangefinder" euler="-1.57080 0.43633  1.57080"/>
+        <site name="rf_06" class="rangefinder" euler="-1.57080 0.52360  1.57080"/>
+        <site name="rf_07" class="rangefinder" euler="-1.57080 0.61087  1.57080"/>
+        <site name="rf_08" class="rangefinder" euler="-1.57080 0.69813  1.57080"/>
+        <site name="rf_09" class="rangefinder" euler="-1.57080 0.78540  1.57080"/>
+        <site name="rf_10" class="rangefinder" euler="-1.57080 0.87266  1.57080"/>
+        <site name="rf_11" class="rangefinder" euler="-1.57080 0.95993  1.57080"/>
+        <site name="rf_12" class="rangefinder" euler="-1.57080 1.04720  1.57080"/>
+        <site name="rf_13" class="rangefinder" euler="-1.57080 1.13446  1.57080"/>
+        <site name="rf_14" class="rangefinder" euler="-1.57080 1.22173  1.57080"/>
+        <site name="rf_15" class="rangefinder" euler="-1.57080 1.30900  1.57080"/>
+        <site name="rf_16" class="rangefinder" euler="-1.57080 1.39626  1.57080"/>
+        <site name="rf_17" class="rangefinder" euler="-1.57080 1.48353  1.57080"/>
+        <site name="rf_18" class="rangefinder" euler=" 0.00000 1.57080  0.00000"/>
+        <site name="rf_19" class="rangefinder" euler=" 1.57080 1.48353 -1.57080"/>
+        <site name="rf_20" class="rangefinder" euler=" 1.57080 1.39626 -1.57080"/>
+        <site name="rf_21" class="rangefinder" euler=" 1.57080 1.30900 -1.57080"/>
+        <site name="rf_22" class="rangefinder" euler=" 1.57080 1.22173 -1.57080"/>
+        <site name="rf_23" class="rangefinder" euler=" 1.57080 1.13446 -1.57080"/>
+        <site name="rf_24" class="rangefinder" euler=" 1.57080 1.04720 -1.57080"/>
+        <site name="rf_25" class="rangefinder" euler=" 1.57080 0.95993 -1.57080"/>
+        <site name="rf_26" class="rangefinder" euler=" 1.57080 0.87266 -1.57080"/>
+        <site name="rf_27" class="rangefinder" euler=" 1.57080 0.78540 -1.57080"/>
+        <site name="rf_28" class="rangefinder" euler=" 1.57080 0.69813 -1.57080"/>
+        <site name="rf_29" class="rangefinder" euler=" 1.57080 0.61087 -1.57080"/>
+        <site name="rf_30" class="rangefinder" euler=" 1.57080 0.52360 -1.57080"/>
+        <site name="rf_31" class="rangefinder" euler=" 1.57080 0.43633 -1.57080"/>
+        <site name="rf_32" class="rangefinder" euler=" 1.57080 0.34907 -1.57080"/>
+        <site name="rf_33" class="rangefinder" euler=" 1.57080 0.26180 -1.57080"/>
+        <site name="rf_34" class="rangefinder" euler=" 1.57080 0.17453 -1.57080"/>
+        <site name="rf_35" class="rangefinder" euler=" 1.57080 0.08727 -1.57080"/>
+        <site name="rf_36" class="rangefinder" euler=" 1.57080 0.00000 -1.57080"/>
         <body name="shoulder_link" pos="0 0 0.15643" quat="0 1 0 0">
           <inertial pos="-2.3e-05 -0.010364 -0.07336" quat="0.707051 0.0451246 -0.0453544 0.704263" mass="1.3773"
             diaginertia="0.00488868 0.00457 0.00135132"/>
@@ -314,4 +355,44 @@
     <key name="retract" qpos="0 0 0 0 -0.34906585 3.14159265 -2.54818071 0 -0.87266463 1.57079633 0 0 0 0 0 0 0 0"
       ctrl="0 0 0 0 -0.34906585 3.14159265 -2.54818071 0 -0.87266463 1.57079633 0"/>
   </keyframe>
+
+  <sensor>
+    <rangefinder name="rf_00" site="rf_00" cutoff="6.0"/>
+    <rangefinder name="rf_01" site="rf_01" cutoff="6.0"/>
+    <rangefinder name="rf_02" site="rf_02" cutoff="6.0"/>
+    <rangefinder name="rf_03" site="rf_03" cutoff="6.0"/>
+    <rangefinder name="rf_04" site="rf_04" cutoff="6.0"/>
+    <rangefinder name="rf_05" site="rf_05" cutoff="6.0"/>
+    <rangefinder name="rf_06" site="rf_06" cutoff="6.0"/>
+    <rangefinder name="rf_07" site="rf_07" cutoff="6.0"/>
+    <rangefinder name="rf_08" site="rf_08" cutoff="6.0"/>
+    <rangefinder name="rf_09" site="rf_09" cutoff="6.0"/>
+    <rangefinder name="rf_10" site="rf_10" cutoff="6.0"/>
+    <rangefinder name="rf_11" site="rf_11" cutoff="6.0"/>
+    <rangefinder name="rf_12" site="rf_12" cutoff="6.0"/>
+    <rangefinder name="rf_13" site="rf_13" cutoff="6.0"/>
+    <rangefinder name="rf_14" site="rf_14" cutoff="6.0"/>
+    <rangefinder name="rf_15" site="rf_15" cutoff="6.0"/>
+    <rangefinder name="rf_16" site="rf_16" cutoff="6.0"/>
+    <rangefinder name="rf_17" site="rf_17" cutoff="6.0"/>
+    <rangefinder name="rf_18" site="rf_18" cutoff="6.0"/>
+    <rangefinder name="rf_19" site="rf_19" cutoff="6.0"/>
+    <rangefinder name="rf_20" site="rf_20" cutoff="6.0"/>
+    <rangefinder name="rf_21" site="rf_21" cutoff="6.0"/>
+    <rangefinder name="rf_22" site="rf_22" cutoff="6.0"/>
+    <rangefinder name="rf_23" site="rf_23" cutoff="6.0"/>
+    <rangefinder name="rf_24" site="rf_24" cutoff="6.0"/>
+    <rangefinder name="rf_25" site="rf_25" cutoff="6.0"/>
+    <rangefinder name="rf_26" site="rf_26" cutoff="6.0"/>
+    <rangefinder name="rf_27" site="rf_27" cutoff="6.0"/>
+    <rangefinder name="rf_28" site="rf_28" cutoff="6.0"/>
+    <rangefinder name="rf_29" site="rf_29" cutoff="6.0"/>
+    <rangefinder name="rf_30" site="rf_30" cutoff="6.0"/>
+    <rangefinder name="rf_31" site="rf_31" cutoff="6.0"/>
+    <rangefinder name="rf_32" site="rf_32" cutoff="6.0"/>
+    <rangefinder name="rf_33" site="rf_33" cutoff="6.0"/>
+    <rangefinder name="rf_34" site="rf_34" cutoff="6.0"/>
+    <rangefinder name="rf_35" site="rf_35" cutoff="6.0"/>
+    <rangefinder name="rf_36" site="rf_36" cutoff="6.0"/>
+  </sensor>
 </mujoco>
