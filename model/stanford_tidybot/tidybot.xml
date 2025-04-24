@@ -119,8 +119,8 @@
       <geom class="base/collision" mesh="body"/>
       <geom class="base/collision" mesh="top_plate"/>
       <geom class="base/collision" mesh="arm_plate"/>
-      <camera name="base" pos="0.2525 0 0.335" euler="0 -0.7853981634 -1.5707963268" fovy="52.23384539951277"
-        resolution="640 360"/>
+      <!-- <camera name="base" pos="0.2525 0 0.335" euler="0 -0.7853981634 -1.5707963268" fovy="52.23384539951277"
+        resolution="640 360"/> -->
       <body name="gen3/base_link" pos="0 0 0.335" quat="-1 0 0 0">
         <inertial pos="-0.000648 -0.000166 0.084487" quat="0.999294 0.00139618 -0.0118387 0.035636" mass="1.697"
           diaginertia="0.00462407 0.00449437 0.00207755"/>
@@ -297,9 +297,9 @@
                       </body>
                       <!-- <camera name="wrist" pos="0 -0.05639 -0.058475" quat="0 0 0 1" fovy="41.83792730009236"
                         resolution="640 480"/> -->
-                      <camera name="wrist" pos="0. 0. -0.1375" quat="1.000000e+00 0.000000e+00 0.000000e+00 6.123234e-17" fovy="41.83792730009236"
+                      <camera name="wrist" pos="0. 0. -0.1375" quat="0.000000e+00 0.000000e+00 0.000000e+00 1.000000e+00" fovy="41.83792730009236"
                         resolution="640 480"/>
-                      <site name="pinch_site" pos="0 0 -0.181525" quat="0 1 0 0"/>
+                      <site name="pinch_site" pos="0 0 -0.181525" quat="0 1 0 0" />
                     </body>
                   </body>
                 </body>
