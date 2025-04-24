@@ -5,8 +5,11 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 #     http://www.apache.org/licenses/LICENSE-2.0
 
+import datetime
+
 import numpy as np
 import matplotlib.pyplot as plt
+from PIL import Image
 
 import mujoco
 from mujoco.glfw import glfw
@@ -15,6 +18,7 @@ from mujoco.glfw import glfw
 class TidyBot:
     def __init__(self, xml_fn, title):
         self.run_flag = True
+        self.save_flag = False
         self.xml_fn = xml_fn
         self.title = title
 
@@ -23,6 +27,8 @@ class TidyBot:
         self.button_right = False
         self.lastx = 0
         self.lasty = 0
+
+        self.joints = np.array([0, 0, 0, 0, np.pi / 3, 0, np.pi / 3, 0, np.pi / 3, -np.pi / 2, 0], np.float32)
 
         self.plt_objs = [None] * 100
 
@@ -44,6 +50,7 @@ class TidyBot:
         # initialize visualization data structures
         mujoco.mjv_defaultCamera(self.cam)
         mujoco.mjv_defaultOption(self.opt)
+        self.opt.flags[mujoco.mjtVisFlag.mjVIS_RANGEFINDER] = False  # disable Rangefinder rendering
         self.scene = mujoco.MjvScene(self.model, maxgeom=10000)
         self.context = mujoco.MjrContext(self.model, mujoco.mjtFontScale.mjFONTSCALE_150.value)
 
@@ -61,19 +68,25 @@ class TidyBot:
     # 카메라 위치 초기화
     def init_cam(self):
         # initialize camera
-        self.cam.azimuth = 90
-        self.cam.elevation = -45
-        self.cam.distance = 2.5
-        self.cam.lookat = np.array([0.0, 0.0, 0.0])
+        self.cam.azimuth = 30
+        self.cam.elevation = -60
+        self.cam.distance = 1.5
+        self.cam.lookat = np.array([0.5, 0.0, 0.0])
         # init second cam
-        self.cam2 = mujoco.MjvCamera()
-        self.cam2.fixedcamid = self.data.cam("wrist").id
-        self.cam2.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        wrist_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, "wrist")
+        if wrist_id >= 0:
+            self.cam2 = mujoco.MjvCamera()
+            self.cam2.fixedcamid = wrist_id
+            self.cam2.type = mujoco.mjtCamera.mjCAMERA_FIXED
+        else:
+            self.cam2 = None
 
     # 키 입력 처리
     def keyboard_cb(self, window, key, scancode, act, mods):
         if act == glfw.PRESS and key == glfw.KEY_Q:  # q: 종료
             self.run_flag = False
+        if act == glfw.PRESS and key == glfw.KEY_S:  # s: 저장
+            self.save_flag = True
 
     # 마우스 버튼 클릭 처리
     def mouse_button_cb(self, window, button, act, mods):
@@ -129,7 +142,7 @@ class TidyBot:
 
     # 스텝별 MuJoCo 센서 정보 조회
     def read_cb(self, camera_flag=False):
-        if camera_flag:
+        if camera_flag and self.cam2:
             cam_with, cam_height = 480, 480
             viewport2 = self.render_camera(self.cam2, cam_with, cam_height)
             mujoco.mjr_render(viewport2, self.scene, self.context)
@@ -142,18 +155,20 @@ class TidyBot:
 
     # 스텝별 MuJoCo 제어 정보 입력 (제어할 내용이 있으면 True 리턴)
     def control_cb(self, model, data, read_data):
-        # print(model.camera("customview"))
-        # data.ctrl[0] += 0.005  # joint_x
-        # data.ctrl[1] += 0.005  # joint_y
-        # data.ctrl[2] += 0.005  # joint_th
-        # data.ctrl[3] += 0.005  # joint_1
-        # data.ctrl[4] += 0.005  # joint_2
-        # data.ctrl[5] += 0.005  # joint_3
-        # data.ctrl[6] += 0.005  # joint_4
-        # data.ctrl[7] += 0.005  # joint_5
-        # data.ctrl[8] += 0.005  # joint_6
-        # data.ctrl[9] += 0.005  # joint_7
-        data.ctrl[10] += 0.5  # fingers_actuator
+        # # print(model.camera("customview"))
+        # # data.ctrl[0] += 0.005  # joint_x
+        # # data.ctrl[1] += 0.005  # joint_y
+        # # data.ctrl[2] += 0.005  # joint_th
+        # # data.ctrl[3] += 0.005  # joint_1
+        # data.ctrl[4] = np.pi / 3  # joint_2
+        # # data.ctrl[5] += 0.005  # joint_3
+        # data.ctrl[6] = np.pi / 3  # joint_4
+        # # data.ctrl[7] += 0.005  # joint_5
+        # data.ctrl[8] = np.pi / 3  # joint_6
+        # data.ctrl[9] = -np.pi / 2  # joint_7
+        # # data.ctrl[10] += 0.50  # fingers_actuator
+        if data.ctrl.shape == self.joints.shape:
+            data.ctrl = self.joints
         return True
 
     def visualize(self, read_data):
@@ -164,8 +179,9 @@ class TidyBot:
             self.plt_objs[i].remove()
             self.plt_objs[i] = None
 
-        self.plt_objs[0] = plt.imshow(read_data[0])
-        plt.pause(0.001)
+        if read_data[0] is not None:
+            self.plt_objs[0] = plt.imshow(read_data[0])
+            plt.pause(0.001)
 
     def render_camera(self, cam, width, height):
         viewport = mujoco.MjrRect(0, 0, width, height)
@@ -180,6 +196,16 @@ class TidyBot:
             self.scene,
         )
         mujoco.mjr_render(viewport, self.scene, self.context)
+        if cam == self.cam and self.save_flag:
+            self.save_flag = False
+            img = np.zeros((height, width, 3), dtype=np.uint8)
+            mujoco.mjr_readPixels(img, None, viewport, self.context)
+            img = np.flipud(img)
+            img = Image.fromarray(img)
+            current_time = datetime.datetime.today()
+            current_time = current_time.strftime("%Y%m%d%H%M%S")
+            img.save(f"render_{current_time}.png")
+
         return viewport
 
     def run_mujoco(self, ft=0.02):
