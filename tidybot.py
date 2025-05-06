@@ -5,20 +5,32 @@
 # Licensed under the Apache License, Version 2.0 (the "License");
 #     http://www.apache.org/licenses/LICENSE-2.0
 
-import datetime
+import time
+import io
 
 import numpy as np
+from scipy.spatial.transform import Rotation as R
+from scipy.optimize import minimize
+
 import matplotlib.pyplot as plt
 from PIL import Image
 
 import mujoco
 from mujoco.glfw import glfw
 
+from flask import Flask, jsonify, request, Response
+import threading
+
+simulator = None
+app = Flask(__name__)
+
+
+PI_HALF = np.pi / 2
+
 
 class TidyBot:
     def __init__(self, xml_fn, title):
         self.run_flag = True
-        self.save_flag = False
         self.xml_fn = xml_fn
         self.title = title
 
@@ -32,11 +44,15 @@ class TidyBot:
 
         self.plt_objs = [None] * 100
 
+        self.capture_flag = False
+        self.capture_img = None
+
     # MuJoCo 환경 초기화
     def init_mujoco(self):
         # MuJoCo data structures
         self.model = mujoco.MjModel.from_xml_path(self.xml_fn)  # MuJoCo model
         self.data = mujoco.MjData(self.model)  # MuJoCo data
+        self.data_fk = mujoco.MjData(self.model)  # MuJoCo data for KF
         self.cam = mujoco.MjvCamera()  # Abstract camera
 
         self.opt = mujoco.MjvOption()  # visualization options
@@ -81,13 +97,6 @@ class TidyBot:
         else:
             self.cam2 = None
 
-    # 키 입력 처리
-    def keyboard_cb(self, window, key, scancode, act, mods):
-        if act == glfw.PRESS and key == glfw.KEY_Q:  # q: 종료
-            self.run_flag = False
-        if act == glfw.PRESS and key == glfw.KEY_S:  # s: 저장
-            self.save_flag = True
-
     # 마우스 버튼 클릭 처리
     def mouse_button_cb(self, window, button, act, mods):
         self.button_left = glfw.get_mouse_button(window, glfw.MOUSE_BUTTON_LEFT) == glfw.PRESS
@@ -129,16 +138,30 @@ class TidyBot:
         else:
             action = mujoco.mjtMouse.mjMOUSE_ZOOM
 
-        mujoco.mjv_moveCamera(self.model, action, dx / height, dy / height, self.scene, self.cam)
+        mujoco.mjv_moveCamera(self.model, action, dx / width, dy / height, self.scene, self.cam)
 
     # 마우스 스코롤 처리
     def scroll_cb(self, window, xoffset, yoffset):
         action = mujoco.mjtMouse.mjMOUSE_ZOOM
         mujoco.mjv_moveCamera(self.model, action, 0.0, -0.05 * yoffset, self.scene, self.cam)
 
+    # 키 입력 처리
+    def keyboard_cb(self, window, key, scancode, act, mods):
+        if act == glfw.PRESS and key == glfw.KEY_Q:  # q: 종료
+            self.run_flag = False
+
     # 초기 MuJoCo 제어 정보 입력
     def init_controller(self, model, data):
         pass
+
+    def to_position(self, element):
+        pos = element.xpos
+        rot = R.from_matrix(element.xmat.reshape(3, 3)).as_euler("xyz")
+        return np.concatenate((pos, rot))
+
+    def get_ee_position(self):
+        mujoco.mj_kinematics(self.model, self.data)
+        return self.to_position(self.data.site("pinch_site"))
 
     # 스텝별 MuJoCo 센서 정보 조회
     def read_cb(self, camera_flag=False):
@@ -153,23 +176,54 @@ class TidyBot:
             img = None
         return (img,)
 
+    def fk(self, joints):
+        self.data_fk.qpos[3:10] = joints
+        mujoco.mj_kinematics(self.model, self.data_fk)
+        pos = self.data_fk.site("pinch_site").xpos
+        rot = R.from_matrix(self.data_fk.site("pinch_site").xmat.reshape(3, 3)).as_euler("xyz")
+        return np.concatenate((pos, rot))
+
+    def solve_ik(self, position):
+        def ik_cost(thetas, position):
+            position_hat = self.fk(thetas)
+            p_error = np.linalg.norm(position[:3] - position_hat[:3])
+            return p_error
+
+        initial_thetas = np.copy(self.data.ctrl[3:10])
+        theta_bounds = [
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+            (np.deg2rad(-180), np.deg2rad(180)),
+        ]
+
+        result = minimize(
+            ik_cost,  # 목적 함수
+            initial_thetas,  # 초기값
+            args=(position,),  # 추가 매개변수
+            bounds=theta_bounds,  # 범위 제한
+            method="L-BFGS-B",  # 제약 조건을 지원하는 최적화 알고리즘
+            options={"ftol": 1e-9},  # 수렴 기준
+        )
+        return result.x
+
     # 스텝별 MuJoCo 제어 정보 입력 (제어할 내용이 있으면 True 리턴)
     def control_cb(self, model, data, read_data):
-        # # print(model.camera("customview"))
-        # # data.ctrl[0] += 0.005  # joint_x
-        # # data.ctrl[1] += 0.005  # joint_y
-        # # data.ctrl[2] += 0.005  # joint_th
-        # # data.ctrl[3] += 0.005  # joint_1
-        # data.ctrl[4] = np.pi / 3  # joint_2
-        # # data.ctrl[5] += 0.005  # joint_3
-        # data.ctrl[6] = np.pi / 3  # joint_4
-        # # data.ctrl[7] += 0.005  # joint_5
-        # data.ctrl[8] = np.pi / 3  # joint_6
-        # data.ctrl[9] = -np.pi / 2  # joint_7
-        # # data.ctrl[10] += 0.50  # fingers_actuator
+        # 0: x, 1: y, 3: theta
+        # 3: joint_1, 4: joint_2, 5: joint_3, 6: joint_4,
+        # 7: joint_5, 8: joint_6, 9: joint_7, 10: fingers_actuator
         if data.ctrl.shape == self.joints.shape:
-            data.ctrl = self.joints
-        return True
+            for i in range(len(self.joints)):
+                delta = self.joints[i] - data.ctrl[i]
+                if i == 10:
+                    delta = np.clip(delta, -2, 2)
+                else:
+                    delta = np.clip(delta, -0.005, 0.005)
+
+                data.ctrl[i] += delta
 
     def visualize(self, read_data):
         # remove visual objects
@@ -196,16 +250,13 @@ class TidyBot:
             self.scene,
         )
         mujoco.mjr_render(viewport, self.scene, self.context)
-        if cam == self.cam and self.save_flag:
-            self.save_flag = False
+        if cam == self.cam and self.capture_flag:
+            self.capture_flag = False
+            # viewport to image
             img = np.zeros((height, width, 3), dtype=np.uint8)
             mujoco.mjr_readPixels(img, None, viewport, self.context)
             img = np.flipud(img)
-            img = Image.fromarray(img)
-            current_time = datetime.datetime.today()
-            current_time = current_time.strftime("%Y%m%d%H%M%S")
-            img.save(f"render_{current_time}.png")
-
+            self.capture_img = Image.fromarray(img)
         return viewport
 
     def run_mujoco(self, ft=0.02):
@@ -216,8 +267,8 @@ class TidyBot:
                 mujoco.mj_step(self.model, self.data)
 
             read_data = self.read_cb(camera_flag=True)
-            if self.control_cb(self.model, self.data, read_data):
-                mujoco.mj_forward(self.model, self.data)
+            self.control_cb(self.model, self.data, read_data)
+            mujoco.mj_forward(self.model, self.data)
             self.visualize(read_data)
 
             # get framebuffer viewport
@@ -231,8 +282,56 @@ class TidyBot:
         glfw.terminate()
 
 
+@app.route("/stop", methods=["GET"])
+def stop():
+    simulator.run_flag = False
+    return ""
+
+
+@app.route("/get_ee", methods=["GET"])
+def get_ee_position():
+    ee_position = simulator.get_ee_position()
+    target_position = simulator.to_position(simulator.data.body("target_redbox"))
+    return jsonify({"ee_position": list(ee_position), "target_position": list(target_position)})
+
+
+@app.route("/set_ee", methods=["POST"])
+def set_ee_position():
+    data = request.json
+    joints = simulator.solve_ik(data["ee_position"])
+    simulator.joints[3:10] = joints
+    return ""
+
+
+@app.route("/set_joints", methods=["POST"])
+def set_joints():
+    data = request.json
+    simulator.joints[:] += np.array(data["joints"])
+    return ""
+
+
+@app.route("/capture", methods=["GET"])
+def capture_camera():
+    simulator.capture_flag = True
+    for i in range(10):
+        if simulator.capture_img is not None:
+            break
+        time.sleep(0.02)
+    img_io = io.BytesIO()
+    if simulator.capture_img is not None:
+        img = simulator.capture_img
+        img.save(img_io, format="PNG")  # PNG 형식으로 저장
+    img_io.seek(0)
+    return Response(img_io, mimetype="image/png")
+
+
 if __name__ == "__main__":
     simulator = TidyBot("./model/stanford_tidybot/scene.xml", "TidyBot")
     # simulator = TidyBot("./model.xml", "TidyBot")
+    # start flask web server
+    threading.Thread(
+        target=lambda: app.run(host="0.0.0.0", port=5555, debug=False, use_reloader=False),
+        daemon=True,
+    ).start()
     simulator.init_mujoco()
     simulator.run_mujoco()
