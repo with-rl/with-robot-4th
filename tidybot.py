@@ -40,7 +40,7 @@ class TidyBot:
         self.lastx = 0
         self.lasty = 0
 
-        self.joints = np.array([0, 0, 0, 0, np.pi / 3, 0, np.pi / 3, 0, np.pi / 3, -np.pi / 2, 0], np.float32)
+        self.joints = np.array([0, 0, 0, 0, np.pi / 3, 0, np.pi / 3, 0, np.pi / 3, np.pi / 2, 50], np.float32)
 
         self.plt_objs = [None] * 100
 
@@ -51,6 +51,7 @@ class TidyBot:
     def init_mujoco(self):
         # MuJoCo data structures
         self.model = mujoco.MjModel.from_xml_path(self.xml_fn)  # MuJoCo model
+        # self.model.light_castshadow[:] = 0  # 0 = 그림자 비활성화, 1 = 활성화
         self.data = mujoco.MjData(self.model)  # MuJoCo data
         self.data_fk = mujoco.MjData(self.model)  # MuJoCo data for KF
         self.cam = mujoco.MjvCamera()  # Abstract camera
@@ -84,10 +85,10 @@ class TidyBot:
     # 카메라 위치 초기화
     def init_cam(self):
         # initialize camera
-        self.cam.azimuth = 30
-        self.cam.elevation = -60
-        self.cam.distance = 1.5
-        self.cam.lookat = np.array([0.5, 0.0, 0.0])
+        self.cam.azimuth = 180
+        self.cam.elevation = -75
+        self.cam.distance = 1.0
+        self.cam.lookat = np.array([0.5, 0.0, 0.5])
         # init second cam
         wrist_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, "wrist")
         if wrist_id >= 0:
@@ -183,12 +184,15 @@ class TidyBot:
         rot = R.from_matrix(self.data_fk.site("pinch_site").xmat.reshape(3, 3)).as_euler("xyz")
         return np.concatenate((pos, rot))
 
-    def solve_ik(self, position):
-        def ik_cost(thetas, position):
-            position_hat = self.fk(thetas)
-            p_error = np.linalg.norm(position[:3] - position_hat[:3])
-            return p_error
+    def ik_cost(self, thetas, position):
+        position_hat = self.fk(thetas)
+        p_error = np.linalg.norm(position[:3] - position_hat[:3])
+        t_quat = R.from_euler("xyz", position[3:]).as_quat()
+        h_quat = R.from_euler("xyz", position_hat[3:]).as_quat()
+        r_error = 1 - np.dot(h_quat, t_quat) ** 2
+        return p_error + r_error * 0.1
 
+    def solve_ik(self, position):
         initial_thetas = np.copy(self.data.ctrl[3:10])
         theta_bounds = [
             (np.deg2rad(-180), np.deg2rad(180)),
@@ -201,16 +205,16 @@ class TidyBot:
         ]
 
         result = minimize(
-            ik_cost,  # 목적 함수
+            self.ik_cost,  # 목적 함수
             initial_thetas,  # 초기값
             args=(position,),  # 추가 매개변수
             bounds=theta_bounds,  # 범위 제한
-            method="L-BFGS-B",  # 제약 조건을 지원하는 최적화 알고리즘
-            options={"ftol": 1e-9},  # 수렴 기준
+            method="SLSQP",  # 제약 조건을 지원하는 최적화 알고리즘
+            options={"ftol": 1e-6, "maxiter": 500},  # 수렴 기준
         )
         return result.x
 
-    # 스텝별 MuJoCo 제어 정보 입력 (제어할 내용이 있으면 True 리턴)
+    # 스텝별 MuJoCo 제어 정보 입력
     def control_cb(self, model, data, read_data):
         # 0: x, 1: y, 3: theta
         # 3: joint_1, 4: joint_2, 5: joint_3, 6: joint_4,
@@ -218,7 +222,7 @@ class TidyBot:
         if data.ctrl.shape == self.joints.shape:
             for i in range(len(self.joints)):
                 delta = self.joints[i] - data.ctrl[i]
-                if i == 10:
+                if i == 10:  # ee control
                     delta = np.clip(delta, -2, 2)
                 else:
                     delta = np.clip(delta, -0.005, 0.005)
@@ -254,9 +258,14 @@ class TidyBot:
             self.capture_flag = False
             # viewport to image
             img = np.zeros((height, width, 3), dtype=np.uint8)
-            mujoco.mjr_readPixels(img, None, viewport, self.context)
-            img = np.flipud(img)
-            self.capture_img = Image.fromarray(img)
+            depth = np.zeros((height, width, 1), dtype=np.float32)
+            mujoco.mjr_readPixels(rgb=img, depth=depth, viewport=viewport, con=self.context)
+            depth = np.flipud(depth)
+            depth -= depth.min()
+            depth /= 2 * depth[depth <= 1].mean()
+            depth = 255 * np.clip(depth, 0, 1)
+            depth = depth.astype(np.uint8).reshape(height, width)
+            self.capture_img = Image.fromarray(depth)
         return viewport
 
     def run_mujoco(self, ft=0.02):
@@ -291,8 +300,7 @@ def stop():
 @app.route("/get_ee", methods=["GET"])
 def get_ee_position():
     ee_position = simulator.get_ee_position()
-    target_position = simulator.to_position(simulator.data.body("target_redbox"))
-    return jsonify({"ee_position": list(ee_position), "target_position": list(target_position)})
+    return jsonify({"ee_position": list(ee_position)})
 
 
 @app.route("/set_ee", methods=["POST"])
@@ -300,13 +308,46 @@ def set_ee_position():
     data = request.json
     joints = simulator.solve_ik(data["ee_position"])
     simulator.joints[3:10] = joints
+    for i in range(100):
+        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
+            break
+        time.sleep(0.1)
     return ""
+
+
+@app.route("/get_site", methods=["POST"])
+def get_site_position():
+    data = request.json
+    position = simulator.to_position(simulator.data.site(data["site_name"]))
+    return jsonify({"site_position": list(position)})
+
+
+@app.route("/get_body", methods=["POST"])
+def get_body_position():
+    data = request.json
+    position = simulator.to_position(simulator.data.body(data["body_name"]))
+    return jsonify({"body_position": list(position)})
 
 
 @app.route("/set_joints", methods=["POST"])
 def set_joints():
     data = request.json
     simulator.joints[:] += np.array(data["joints"])
+    for i in range(100):
+        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
+            break
+        time.sleep(0.1)
+    return ""
+
+
+@app.route("/set_gripper", methods=["POST"])
+def set_gripper():
+    data = request.json
+    # simulator.joints[10] = 250 if data["gripper"] == 1 else 50
+    for i in range(100):
+        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
+            break
+        time.sleep(0.1)
     return ""
 
 
@@ -320,6 +361,7 @@ def capture_camera():
     img_io = io.BytesIO()
     if simulator.capture_img is not None:
         img = simulator.capture_img
+        simulator.capture_img = None
         img.save(img_io, format="PNG")  # PNG 형식으로 저장
     img_io.seek(0)
     return Response(img_io, mimetype="image/png")
@@ -327,7 +369,6 @@ def capture_camera():
 
 if __name__ == "__main__":
     simulator = TidyBot("./model/stanford_tidybot/scene.xml", "TidyBot")
-    # simulator = TidyBot("./model.xml", "TidyBot")
     # start flask web server
     threading.Thread(
         target=lambda: app.run(host="0.0.0.0", port=5555, debug=False, use_reloader=False),
