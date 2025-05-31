@@ -140,24 +140,23 @@ class TidyBot:
 
     # 키 입력 처리
     def keyboard_cb(self, window, key, scancode, act, mods):
-        delta = 0.02
+        delta = 0.01
         if act == glfw.PRESS and key == glfw.KEY_Q:  # q: 종료
             self.run_flag = False
-        elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_UP:
+        elif (act == glfw.PRESS or act == glfw.REPEAT) and (
+            key == glfw.KEY_UP or key == glfw.KEY_DOWN or key == glfw.KEY_LEFT or key == glfw.KEY_RIGHT
+        ):
             position = self.get_ee_position()
-            position[0] -= delta
-            self.joints[:] = self.solve_ik(position)
-        elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_DOWN:
-            position = self.get_ee_position()
-            position[0] += delta
-            self.joints[:] = self.solve_ik(position)
-        elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_LEFT:
-            position = self.get_ee_position()
-            position[1] -= delta
-            self.joints[:] = self.solve_ik(position)
-        elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_RIGHT:
-            position = self.get_ee_position()
-            position[1] += delta
+            # print(position[:3])
+            if key == glfw.KEY_UP:
+                position[0] -= delta
+            elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_DOWN:
+                position[0] += delta
+            elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_LEFT:
+                position[1] -= delta
+            elif (act == glfw.PRESS or act == glfw.REPEAT) and key == glfw.KEY_RIGHT:
+                position[1] += delta
+            position[2:] = [0.01, np.pi, 0, -np.pi / 2]
             self.joints[:] = self.solve_ik(position)
 
     # 초기 MuJoCo 제어 정보 입력
@@ -190,7 +189,7 @@ class TidyBot:
         t_quat = R.from_euler("xyz", position[3:]).as_quat()
         h_quat = R.from_euler("xyz", position_hat[3:]).as_quat()
         r_error = 1 - np.dot(h_quat, t_quat) ** 2
-        return p_error + r_error * 0.01
+        return p_error + r_error * 0.1
 
     def solve_ik(self, position):
         initial_thetas = np.copy(self.data.qpos[:6])
@@ -287,7 +286,6 @@ def set_ee_position():
     data = request.json
     joints = simulator.solve_ik(data["ee_position"])
     simulator.joints[:] = joints
-    print(joints)
     for i in range(100):
         if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
             break
