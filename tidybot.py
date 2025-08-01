@@ -40,7 +40,7 @@ class TidyBot:
         self.lastx = 0
         self.lasty = 0
 
-        self.joints = np.array([0, 0, 0, 0, np.pi / 3, 0, np.pi / 3, 0, np.pi / 3, np.pi / 2, 50], np.float32)
+        self.joints = np.array([0, 0, 0, -np.pi / 2, 0, 0, 0, 0, 0, 0, 50], np.float32)
 
         self.plt_objs = [None] * 100
 
@@ -85,9 +85,9 @@ class TidyBot:
     # 카메라 위치 초기화
     def init_cam(self):
         # initialize camera
-        self.cam.azimuth = 180
-        self.cam.elevation = -75
-        self.cam.distance = 1.0
+        self.cam.azimuth = 15
+        self.cam.elevation = -45
+        self.cam.distance = 10.0
         self.cam.lookat = np.array([0.5, 0.0, 0.5])
         # init second cam
         wrist_id = mujoco.mj_name2id(self.model, mujoco.mjtObj.mjOBJ_CAMERA, "wrist")
@@ -150,6 +150,55 @@ class TidyBot:
     def keyboard_cb(self, window, key, scancode, act, mods):
         if act == glfw.PRESS and key == glfw.KEY_Q:  # q: 종료
             self.run_flag = False
+        do_move = (act == glfw.PRESS or act == glfw.REPEAT)
+        if do_move and key == glfw.KEY_UP:  # x축 방향으로 이동
+            self.joints[0] += 0.1
+            self.joints[0] = np.clip(self.joints[0], -4.0, 4.0)
+        elif do_move and key == glfw.KEY_DOWN:  # x축 반대 방향으로 이동
+            self.joints[0] -= 0.1
+            self.joints[0] = np.clip(self.joints[0], -4.0, 4.0)
+        elif do_move and key == glfw.KEY_LEFT:  # y축 방향으로 이동
+            self.joints[1] += 0.1
+            self.joints[1] = np.clip(self.joints[1], -4.0, 4.0)
+        elif do_move and key == glfw.KEY_RIGHT:  # y축 반대 방향으로 이동
+            self.joints[1] -= 0.1
+            self.joints[1] = np.clip(self.joints[1], -4.0, 4.0)
+        elif do_move and key == glfw.KEY_W:  # 시계 반대 방향으로 회전
+            self.joints[2] += 0.1
+        elif do_move and key == glfw.KEY_S:  # 시계 방향으로 회전
+            self.joints[2] -= 0.1
+        elif do_move and key == glfw.KEY_E:  # joint_1 + 방향으로 회전
+            self.joints[3] += 0.1
+        elif do_move and key == glfw.KEY_D:  # joint_1 - 방향으로 회전
+            self.joints[3] -= 0.1
+        elif do_move and key == glfw.KEY_R:  # joint_2 + 방향으로 회전
+            self.joints[4] += 0.1
+        elif do_move and key == glfw.KEY_F:  # joint_2 - 방향으로 회전
+            self.joints[4] -= 0.1
+        elif do_move and key == glfw.KEY_T:  # joint_3 + 방향으로 회전
+            self.joints[5] += 0.1
+        elif do_move and key == glfw.KEY_G:  # joint_3 - 방향으로 회전
+            self.joints[5] -= 0.1
+        elif do_move and key == glfw.KEY_Y:  # joint_4 + 방향으로 회전
+            self.joints[6] += 0.1
+        elif do_move and key == glfw.KEY_H:  # joint_4 - 방향으로 회전
+            self.joints[6] -= 0.1
+        elif do_move and key == glfw.KEY_U:  # joint_5 + 방향으로 회전
+            self.joints[7] += 0.1
+        elif do_move and key == glfw.KEY_J:  # joint_5 - 방향으로 회전
+            self.joints[7] -= 0.1
+        elif do_move and key == glfw.KEY_I:  # joint_6 + 방향으로 회전
+            self.joints[8] += 0.1
+        elif do_move and key == glfw.KEY_K:  # joint_6 - 방향으로 회전
+            self.joints[8] -= 0.1
+        elif do_move and key == glfw.KEY_O:  # joint_7 + 방향으로 회전
+            self.joints[9] += 0.1
+        elif do_move and key == glfw.KEY_L:  # joint_7 - 방향으로 회전
+            self.joints[9] -= 0.1
+        elif do_move and key == glfw.KEY_P:  # ee grip
+            self.joints[10] += 10.0
+        elif do_move and key == glfw.KEY_SEMICOLON:  # ee release
+            self.joints[10] -= 10.0
 
     # 초기 MuJoCo 제어 정보 입력
     def init_controller(self, model, data):
@@ -225,7 +274,7 @@ class TidyBot:
                 if i == 10:  # ee control
                     delta = np.clip(delta, -2, 2)
                 else:
-                    delta = np.clip(delta, -0.005, 0.005)
+                    delta = np.clip(delta, -0.01, 0.01)
 
                 data.ctrl[i] += delta
 
@@ -278,7 +327,7 @@ class TidyBot:
             read_data = self.read_cb(camera_flag=True)
             self.control_cb(self.model, self.data, read_data)
             mujoco.mj_forward(self.model, self.data)
-            self.visualize(read_data)
+            # self.visualize(read_data)
 
             # get framebuffer viewport
             viewport_width, viewport_height = glfw.get_framebuffer_size(self.window)
