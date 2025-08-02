@@ -350,8 +350,8 @@
   </equality>
 
   <actuator>
-    <position name="joint_x" joint="joint_x" kp="1000000" kv="50000"/>
-    <position name="joint_y" joint="joint_y" kp="1000000" kv="50000"/>
+    <position name="joint_x" joint="joint_x" kp="10000" kv="5000"/>
+    <position name="joint_y" joint="joint_y" kp="10000" kv="5000"/>
     <position name="joint_th" joint="joint_th" kp="50000" kv="1000"/>
     <position class="large_actuator" name="joint_1" joint="joint_1"/>
     <position class="large_actuator" name="joint_2" joint="joint_2" ctrlrange="-2.2497294058206907 2.2497294058206907"/>

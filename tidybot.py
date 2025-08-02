@@ -153,16 +153,16 @@ class TidyBot:
         do_move = (act == glfw.PRESS or act == glfw.REPEAT)
         if do_move and key == glfw.KEY_UP:  # x축 방향으로 이동
             self.joints[0] += 0.1
-            self.joints[0] = np.clip(self.joints[0], -4.0, 4.0)
+            self.joints[0] = np.clip(self.joints[0], -4.5, 4.5)
         elif do_move and key == glfw.KEY_DOWN:  # x축 반대 방향으로 이동
             self.joints[0] -= 0.1
-            self.joints[0] = np.clip(self.joints[0], -4.0, 4.0)
+            self.joints[0] = np.clip(self.joints[0], -4.5, 4.5)
         elif do_move and key == glfw.KEY_LEFT:  # y축 방향으로 이동
             self.joints[1] += 0.1
-            self.joints[1] = np.clip(self.joints[1], -4.0, 4.0)
+            self.joints[1] = np.clip(self.joints[1], -4.5, 4.5)
         elif do_move and key == glfw.KEY_RIGHT:  # y축 반대 방향으로 이동
             self.joints[1] -= 0.1
-            self.joints[1] = np.clip(self.joints[1], -4.0, 4.0)
+            self.joints[1] = np.clip(self.joints[1], -4.5, 4.5)
         elif do_move and key == glfw.KEY_W:  # 시계 반대 방향으로 회전
             self.joints[2] += 0.1
         elif do_move and key == glfw.KEY_S:  # 시계 방향으로 회전
@@ -338,82 +338,6 @@ class TidyBot:
             glfw.poll_events()
 
         glfw.terminate()
-
-
-@app.route("/stop", methods=["GET"])
-def stop():
-    simulator.run_flag = False
-    return ""
-
-
-@app.route("/get_ee", methods=["GET"])
-def get_ee_position():
-    ee_position = simulator.get_ee_position()
-    return jsonify({"ee_position": list(ee_position)})
-
-
-@app.route("/set_ee", methods=["POST"])
-def set_ee_position():
-    data = request.json
-    joints = simulator.solve_ik(data["ee_position"])
-    simulator.joints[3:10] = joints
-    for i in range(100):
-        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
-            break
-        time.sleep(0.1)
-    return ""
-
-
-@app.route("/get_site", methods=["POST"])
-def get_site_position():
-    data = request.json
-    position = simulator.to_position(simulator.data.site(data["site_name"]))
-    return jsonify({"site_position": list(position)})
-
-
-@app.route("/get_body", methods=["POST"])
-def get_body_position():
-    data = request.json
-    position = simulator.to_position(simulator.data.body(data["body_name"]))
-    return jsonify({"body_position": list(position)})
-
-
-@app.route("/set_joints", methods=["POST"])
-def set_joints():
-    data = request.json
-    simulator.joints[:] += np.array(data["joints"])
-    for i in range(100):
-        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
-            break
-        time.sleep(0.1)
-    return ""
-
-
-@app.route("/set_gripper", methods=["POST"])
-def set_gripper():
-    data = request.json
-    # simulator.joints[10] = 250 if data["gripper"] == 1 else 50
-    for i in range(100):
-        if np.linalg.norm(simulator.joints - simulator.data.ctrl) < 0.1:
-            break
-        time.sleep(0.1)
-    return ""
-
-
-@app.route("/capture", methods=["GET"])
-def capture_camera():
-    simulator.capture_flag = True
-    for i in range(10):
-        if simulator.capture_img is not None:
-            break
-        time.sleep(0.02)
-    img_io = io.BytesIO()
-    if simulator.capture_img is not None:
-        img = simulator.capture_img
-        simulator.capture_img = None
-        img.save(img_io, format="PNG")  # PNG 형식으로 저장
-    img_io.seek(0)
-    return Response(img_io, mimetype="image/png")
 
 
 if __name__ == "__main__":
